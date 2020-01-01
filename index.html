@@ -1,1 +1,185 @@
-hello
+<html>
+<head>
+<title>irc.dev</title>
+<style>
+body {
+  font-family: Verdana, Geneva, sans-serif;
+  font-size: 16px;
+}
+.connection {
+  background: #333333;
+  color: #e8e8e8;
+  padding: 5px 1em;
+}
+.connection input {
+  width: 200px;
+  padding: 3px 5px;
+}
+
+.logs {
+  display: flex;
+}
+
+.log {
+  font-family: monospace;
+  font-size: 0.9em;
+  line-height: 1.4em;
+  flex: 1;
+}
+.log td {
+  padding: 2px 4px;
+  vertical-align: text-top;
+}
+.log-params > span {
+  background: #eaeaea;
+  margin: 0 1px;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.options {
+
+}
+.options > label {
+  display: block;
+}
+</style>
+</head>
+<body>
+    <div id="app">
+    <div class="connection">
+        <label>Server (host[:port][/path]) <input v-model="connection.url"></label>
+        <span>TLS websocket</span>
+        <button @click="connectIrc">Connect</button>
+        <span v-if="numConnects > 0" class="connection-state">{{ connectionStates[connection.state] }}</span>
+    </div>
+    
+    <div class="logs">
+        <table class="log" cellpadding="2">
+        <tr v-for="log in filteredLogs">
+            <td v-if="showUi.timestamp">{{ log.time - logStarted }}</td>
+            <td v-if="showUi.direction">{{ log.fromServer ? '[s]' : '[c]' }}</td>
+            <td class="log-message">
+            <span v-if="showUi.tags" class="log-tags">{{ formatTags(log.message.tags) }}</span>
+            <span v-if="showUi.source" class="log-source">{{ log.message.prefix ? ':' + log.message.prefix : ''}}</span>
+            <span v-if="showUi.command" class="log-command">{{ log.message.command }}</span>
+            <span v-if="showUi.params" class="log-params">
+                <span v-for="(p, idx) in log.message.params">{{ idx === log.message.params.length - 1 && needsTrailing(p) ? ':' + p : p }}</span>
+            </span>
+            </td>
+        </tr>
+        </table>
+
+        <div class="options">
+        <label><input type="checkbox" v-model="showUi.timestamp" /> Timestamps</label>
+        <label><input type="checkbox" v-model="showUi.direction" /> Direction</label>
+        <label><input type="checkbox" v-model="showUi.tags" /> Tags</label>
+        <label><input type="checkbox" v-model="showUi.source" /> Source</label>
+        <label><input type="checkbox" v-model="showUi.command" /> Command</label>
+        <label><input type="checkbox" v-model="showUi.params" /> Params</label>
+
+        <label>Filter commands <br /><input type="text" v-model="messageFilter" /></label>
+        </div>
+    </div>
+    </div>
+</body>
+
+<script src="irc-framework.js"></script>
+<script src="vue-2.6.11.min.js"></script>
+<script>
+const WS_CLOSED = 0;
+const WS_OPEN = 1;
+const WS_CONNECTING = 2;
+
+new Vue({
+  el: "#app",
+  data: {
+    showUi: {
+      timestamp: true,
+      direction: true,
+      tags: true,
+      source: true,
+      command: true,
+      params: true,
+    },
+    connection: {
+    	url: 'irc.com/webirc/websocket/',
+      state: WS_CLOSED,
+    },
+    logStarted: Date.now(),
+    logs: [],
+    messageFilter: '',
+    connectionStates: {
+      0: 'Disconnected',
+      1: 'Connected',
+      2: 'Connecting..',
+    },
+    numConnects: 0,
+  },
+  computed: {
+    filteredLogs() {
+      if (!this.messageFilter) {
+        return this.logs;
+      }
+      let filters = this.messageFilter.toLowerCase().split(' ');
+      return this.logs.filter(log => {
+        return filters.indexOf(log.message.command.toLowerCase()) > -1;
+      });
+    },
+  },
+  methods: {
+    needsTrailing(val) {
+      return val.indexOf(' ') > -1 || val[0] === ' ';
+    },
+  	formatTags: function(tags){
+      let keys = Object.keys(tags);
+      if (keys.length === 0) {
+      	return '';
+      }
+
+      return keys.reduce((acc, key) => {
+      	return `${acc}${key}=${tags[key]};`;
+      }, '@');
+    },
+    connectIrc() {
+      if (!this.connection.url) {
+        return;
+      }
+
+      let m = this.connection.url.match(/^([^:\/]+)(:[0-9]+)?(\/.+)?/);
+      if (!m) {
+      	return;
+      }
+
+      let irc = window['irc-framework'];
+      let client = new irc.Client();
+      
+      this.connection.state = WS_CONNECTING;
+      this.numConnects++;
+      client.connect({
+        nick: 'prawnbtest',
+        host: m[1],
+        port: parseInt(m[2] || 443, 10),
+        tls: true,
+        direct: true,
+        path: m[3] ? m[3] : '/',
+      });
+      client.on('raw', event => {
+        let m = irc.ircLineParser(event.line);
+        this.logs.push({
+          time: Date.now(),
+          message: m,
+          fromServer: event.from_server,
+        });
+      });
+      client.on('socket connected', event => {
+      	this.connection.state = WS_OPEN;
+      });
+      client.on('socket close', event => {
+      	this.connection.state = WS_CLOSE;
+      });
+    },
+  }
+})
+</script>
+</html>
