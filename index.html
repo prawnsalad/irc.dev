@@ -430,8 +430,10 @@ new Vue({
       this.connection.state = WS_CONNECTING;
       this.numConnects++;
       this.logs = [];
+
       client.connect({
         nick: this.$refs.ircopts.nick,
+        password: this.$refs.ircopts.password,
         host: m[1],
         port: parseInt(m[2] || 443, 10),
         tls: true,
