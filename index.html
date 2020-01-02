@@ -93,13 +93,13 @@ a {
     <div class="logs">
         <div class="log">
             <table cellpadding="2">
-                <tr v-for="log in filteredLogs">
+                <tr v-for="log in filteredLogs" :key="log.id">
                     <td v-if="showUi.timestamp">{{ log.time - logStarted }}</td>
                     <td v-if="showUi.direction">{{ log.fromServer ? '[s]' : '[c]' }}</td>
                     <td class="log-message">
                     <span v-if="showUi.tags" class="log-tags">{{ formatTags(log.message.tags) }}</span>
                     <span v-if="showUi.source" class="log-source">{{ log.message.prefix ? ':' + log.message.prefix : ''}}</span>
-                    <span v-if="showUi.command" class="log-command">{{ commandText(log.message.command) }}</span>
+                    <span v-if="showUi.command" class="log-command" :title="log.message.command">{{ commandText(log.message.command) }}</span>
                     <span v-if="showUi.params" class="log-params">
                         <span v-for="(p, idx) in log.message.params">{{ idx === log.message.params.length - 1 && needsTrailing(p) ? ':' + p : p }}</span>
                     </span>
@@ -444,9 +444,12 @@ new Vue({
         enable_setname: this.$refs.ircopts.caps['setname'].enabled,
       });
 
+      let logId = 0;
       let onRaw = event => {
+        logId++;
         let m = irc.ircLineParser(event.line);
         this.logs.push({
+          id: logId,
           time: Date.now(),
           message: m,
           fromServer: event.from_server,
